@@ -174,18 +174,6 @@
             <input type="text" id="other-item-input" placeholder="例：過去問演習（計画）">
         </div>
         
-        <label for="study-understanding">理解度</label>
-        <select id="study-understanding">
-            <option value="5">5 - 完全に理解</option>
-            <option value="4">4 - ほぼ理解</option>
-            <option value="3" selected>3 - 普通</option>
-            <option value="2">2 - やや理解不足</option>
-            <option value="1">1 - 理解不足</option>
-        </select>
-        
-        <label for="study-time">学習時間（分）</label>
-        <input type="number" id="study-time" value="30">
-        
         <button style="width: 100%; margin-top: 10px;" onclick="recordStudy()">記録する</button>
     </div>
     
@@ -238,22 +226,16 @@
                     <tr>
                         <th>日付</th>
                         <th>項目</th>
-                        <th>理解度</th>
-                        <th>時間</th>
                     </tr>
                 </thead>
                 <tbody id="history-tbody">
                     <tr>
                         <td>3/18</td>
                         <td><span class="category cat-planning">計画</span> 建築史</td>
-                        <td>3</td>
-                        <td>45分</td>
                     </tr>
                     <tr>
                         <td>3/17</td>
                         <td><span class="category cat-law">法規</span> 建築基準法</td>
-                        <td>4</td>
-                        <td>60分</td>
                     </tr>
                 </tbody>
             </table>
@@ -471,9 +453,6 @@
                 itemName = itemSelect.options[itemSelect.selectedIndex].text;
             }
             
-            const understanding = document.getElementById('study-understanding').value;
-            const time = document.getElementById('study-time').value;
-            
             // 履歴テーブルに追加
             const historyTable = document.getElementById('history-tbody');
             const newRow = document.createElement('tr');
@@ -484,8 +463,6 @@
             newRow.innerHTML = `
                 <td>${formattedDate}</td>
                 <td><span class="category cat-${category}">${getCategoryLabel(category)}</span> ${itemName}</td>
-                <td>${understanding}</td>
-                <td>${time}分</td>
             `;
             
             historyTable.insertBefore(newRow, historyTable.firstChild);
@@ -496,7 +473,6 @@
             if (category === 'other') {
                 document.getElementById('other-item-input').value = '';
             }
-            document.getElementById('study-time').value = '30';
         }
         
         // 設定を保存
