@@ -100,6 +100,11 @@
             border-radius: 4px;
             display: none;
         }
+        .next-review {
+            color: #E91E63;
+            font-weight: bold;
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -148,6 +153,7 @@
                     <tr>
                         <th>日付</th>
                         <th>項目</th>
+                        <th>次回学習</th>
                     </tr>
                 </thead>
                 <tbody id="history-tbody"></tbody>
@@ -158,6 +164,10 @@
         <div id="tab2" class="tab-content">
             <label for="exam-date">試験日</label>
             <input type="date" id="exam-date" value="2025-07-27">
+            
+            <label for="review-pattern">復習間隔（日数）</label>
+            <input type="text" id="review-pattern" placeholder="例: 2, 7, 16, 35, 62">
+            
             <button style="width: 100%; margin-top: 10px;" onclick="saveSettings()">設定保存</button>
             <div style="margin-top: 20px;">
                 <button onclick="exportData()">データ保存</button>
@@ -260,7 +270,10 @@
         let appData = {
             tasks: [],
             history: [],
-            settings: { examDate: '2025-07-27' }
+            settings: { 
+                examDate: '2025-07-27',
+                reviewPattern: [2, 7, 16, 35, 62]
+            }
         };
         
         // 初期化
@@ -271,6 +284,7 @@
             renderTasks();
             renderHistory();
             document.getElementById('exam-date').value = appData.settings.examDate;
+            document.getElementById('review-pattern').value = appData.settings.reviewPattern.join(', ');
         };
         
         // データ読み込み
@@ -278,6 +292,13 @@
             const data = localStorage.getItem('architect_study_data');
             if (data) {
                 appData = JSON.parse(data);
+                // 設定値が存在しない場合はデフォルト値を設定
+                if (!appData.settings) {
+                    appData.settings = { examDate: '2025-07-27', reviewPattern: [2, 7, 16, 35, 62] };
+                }
+                if (!appData.settings.reviewPattern) {
+                    appData.settings.reviewPattern = [2, 7, 16, 35, 62];
+                }
             }
         }
         
@@ -326,7 +347,7 @@
             
             if (appData.history.length === 0) {
                 const row = document.createElement('tr');
-                row.innerHTML = '<td colspan="2" style="text-align: center; color: #777;">履歴なし</td>';
+                row.innerHTML = '<td colspan="3" style="text-align: center; color: #777;">履歴なし</td>';
                 historyTable.appendChild(row);
                 return;
             }
@@ -341,9 +362,31 @@
                 const date = new Date(record.date);
                 const formattedDate = `${date.getMonth() + 1}/${date.getDate()}`;
                 
+                // 次回学習日の計算
+                let nextReviewText = '-';
+                if (record.nextReview) {
+                    const nextDate = new Date(record.nextReview);
+                    nextReviewText = `${nextDate.getMonth() + 1}/${nextDate.getDate()}`;
+                    
+                    // 今日の日付との比較
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    
+                    if (nextDate < today) {
+                        nextReviewText = `<span class="next-review">期限切れ (${nextReviewText})</span>`;
+                    } else if (
+                        nextDate.getDate() === today.getDate() && 
+                        nextDate.getMonth() === today.getMonth() && 
+                        nextDate.getFullYear() === today.getFullYear()
+                    ) {
+                        nextReviewText = `<span class="next-review">今日 (${nextReviewText})</span>`;
+                    }
+                }
+                
                 row.innerHTML = `
                     <td>${formattedDate}</td>
                     <td><span class="category cat-${record.category}">${getCategoryLabel(record.category)}</span> ${record.itemName}</td>
+                    <td>${nextReviewText}</td>
                 `;
                 historyTable.appendChild(row);
             });
@@ -440,6 +483,21 @@
             return labels[category] || '計画';
         }
         
+        // 次回学習日を計算
+        function calculateNextReviewDate(studyDate) {
+            const date = new Date(studyDate);
+            const pattern = appData.settings.reviewPattern;
+            
+            // 復習パターンの最初の間隔を日数に追加
+            if (pattern && pattern.length > 0) {
+                date.setDate(date.getDate() + pattern[0]);
+            } else {
+                // デフォルトは2日後
+                date.setDate(date.getDate() + 2);
+            }
+            return date;
+        }
+        
         // 学習記録を保存
         function recordStudy() {
             const date = document.getElementById('study-date').value;
@@ -449,6 +507,7 @@
             }
             
             const category = document.getElementById('study-category').value;
+            let itemId = '';
             let itemName = '';
             
             if (category === 'other') {
@@ -459,14 +518,20 @@
                 }
             } else {
                 const itemSelect = document.getElementById('study-item');
+                itemId = itemSelect.value;
                 itemName = itemSelect.options[itemSelect.selectedIndex].text;
             }
+            
+            // 次回学習日を計算
+            const nextReview = calculateNextReviewDate(date);
             
             // 学習履歴に追加
             appData.history.push({
                 date,
                 category,
-                itemName
+                itemId,
+                itemName,
+                nextReview: nextReview.toISOString()
             });
             
             renderHistory();
@@ -481,6 +546,20 @@
         // 設定を保存
         function saveSettings() {
             appData.settings.examDate = document.getElementById('exam-date').value;
+            
+            // 復習パターンの設定
+            const patternInput = document.getElementById('review-pattern').value;
+            if (patternInput) {
+                try {
+                    const pattern = patternInput.split(',').map(s => parseInt(s.trim()));
+                    if (pattern.length > 0 && !pattern.some(isNaN)) {
+                        appData.settings.reviewPattern = pattern;
+                    }
+                } catch (e) {
+                    console.error('Invalid review pattern:', e);
+                }
+            }
+            
             saveData();
         }
         
@@ -527,7 +606,10 @@
                 appData = {
                     tasks: [],
                     history: [],
-                    settings: { examDate: '2025-07-27' }
+                    settings: { 
+                        examDate: '2025-07-27',
+                        reviewPattern: [2, 7, 16, 35, 62]
+                    }
                 };
                 renderTasks();
                 renderHistory();
