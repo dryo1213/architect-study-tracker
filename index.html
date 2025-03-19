@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一級建築士試験 学習管理</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        h1, h2 {
+            margin-top: 0;
+            color: #2196F3;
+        }
+        
+        .box {
+            background: white;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .task {
+            padding: 8px;
+            margin-bottom: 5px;
+            border-left: 3px solid #2196F3;
+            background-color: #f9f9f9;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .task.done {
+            opacity: 0.6;
+            text-decoration: line-through;
+        }
+        
+        button {
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        select, input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .tabs {
+            display: flex;
+            margin-bottom: 10px;
+        }
+        
+        .tab {
+            padding: 8px 12px;
+            cursor: pointer;
+            background-color: #f1f1f1;
+            border-right: 1px solid #ddd;
+        }
+        
+        .tab.active {
+            background-color: #2196F3;
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .category {
+            display: inline-block;
+            padding: 2px 5px;
+            font-size: 12px;
+            border-radius: 3px;
+            color: white;
+            margin-right: 5px;
+        }
+        
+        .cat-planning { background-color: #2196F3; }
+        .cat-environment { background-color: #00BCD4; }
+        .cat-law { background-color: #9C27B0; }
+        .cat-structure { background-color: #FFC107; }
+        .cat-construction { background-color: #FF9800; }
+        .cat-other { background-color: #607D8B; }
+    </style>
+</head>
+<body>
+    <h1>一級建築士試験 学習管理</h1>
+    
+    <!-- 今日の学習タスク -->
+    <div class="box">
+        <h2>今日の学習タスク</h2>
+        <div id="tasks">
+            <div class="task">
+                <div>
+                    <span class="category cat-planning">計画</span>
+                    高齢者・車いす使用者
+                </div>
+                <button onclick="toggleTask(this)">完了</button>
+            </div>
+            <div class="task">
+                <div>
+                    <span class="category cat-environment">環境</span>
+                    空気調和設備
+                </div>
+                <button onclick="toggleTask(this)">完了</button>
+            </div>
+            <div class="task done">
+                <div>
+                    <span class="category cat-law">法規</span>
+                    建築基準法
+                </div>
+                <button onclick="toggleTask(this)">戻す</button>
+            </div>
+        </div>
+        <button style="width: 100%; margin-top: 10px;" onclick="addTask()">+ 新しいタスク</button>
+    </div>
+    
+    <!-- 学習記録フォーム -->
+    <div class="box">
+        <h2>学習記録</h2>
+        <label for="study-date">学習日</label>
+        <input type="date" id="study-date" value="2025-03-19">
+        
+        <label for="study-category">カテゴリ</label>
+        <select id="study-category" onchange="updateItems()">
+            <option value="planning">計画</option>
+            <option value="environment">環境・設備</option>
+            <option value="law">法規</option>
+            <option value="structure">構造</option>
+            <option value="construction">施工</option>
+            <option value="other">その他</option>
+        </select>
+        
+        <div id="item-selection">
+            <label for="study-item">学習項目</label>
+            <select id="study-item"></select>
+        </div>
+        
+        <div id="other-item" style="display: none;">
+            <label for="other-item-input">その他項目（自由入力）</label>
+            <input type="text" id="other-item-input" placeholder="例：過去問演習（計画）">
+        </div>
+        
+        <label for="study-understanding">理解度</label>
+        <select id="study-understanding">
+            <option value="5">5 - 完全に理解</option>
+            <option value="4">4 - ほぼ理解</option>
+            <option value="3" selected>3 - 普通</option>
+            <option value="2">2 - やや理解不足</option>
+            <option value="1">1 - 理解不足</option>
+        </select>
+        
+        <label for="study-time">学習時間（分）</label>
+        <input type="number" id="study-time" value="30">
+        
+        <button style="width: 100%; margin-top: 10px;" onclick="recordStudy()">記録する</button>
+    </div>
+    
+    <!-- タブ付きコンテンツ -->
+    <div class="box">
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('tab1')">学習項目一覧</div>
+            <div class="tab" onclick="switchTab('tab2')">学習履歴</div>
+            <div class="tab" onclick="switchTab('tab3')">設定</div>
+        </div>
+        
+        <!-- 学習項目一覧 -->
+        <div id="tab1" class="tab-content active">
+            <table>
+                <thead>
+                    <tr>
+                        <th>項目</th>
+                        <th>重要度</th>
+                        <th>状態</th>
+                        <th>次回復習</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="category cat-planning">計画</span> 建築設計の手法等</td>
+                        <td>A</td>
+                        <td>未学習</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td><span class="category cat-planning">計画</span> 建築史</td>
+                        <td>B</td>
+                        <td>未学習</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td><span class="category cat-environment">環境</span> 空気調和設備</td>
+                        <td>S</td>
+                        <td>未学習</td>
+                        <td>-</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- 学習履歴 -->
+        <div id="tab2" class="tab-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>日付</th>
+                        <th>項目</th>
+                        <th>理解度</th>
+                        <th>時間</th>
+                    </tr>
+                </thead>
+                <tbody id="history-tbody">
+                    <tr>
+                        <td>3/18</td>
+                        <td><span class="category cat-planning">計画</span> 建築史</td>
+                        <td>3</td>
+                        <td>45分</td>
+                    </tr>
+                    <tr>
+                        <td>3/17</td>
+                        <td><span class="category cat-law">法規</span> 建築基準法</td>
+                        <td>4</td>
+                        <td>60分</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- 設定 -->
+        <div id="tab3" class="tab-content">
+            <label for="exam-date">試験日</label>
+            <input type="date" id="exam-date" value="2025-07-27">
+            
+            <label for="review-pattern">復習パターン（日数）</label>
+            <input type="text" id="review-pattern" value="2, 7, 16, 35, 62">
+            
+            <button style="width: 100%; margin-top: 10px;" onclick="saveSettings()">保存</button>
+        </div>
+    </div>
+    
+    <script>
+        // 学習項目データ
+        const studyItems = {
+            planning: [
+                { id: 'p1', name: '建築設計の手法等', importance: 'A' },
+                { id: 'p2', name: '建築史', importance: 'B' },
+                { id: 'p3', name: '周辺環境・まちづくり', importance: 'A' },
+                { id: 'p4', name: '開口部', importance: 'S' },
+                { id: 'p5', name: '各部の寸法', importance: 'S' },
+                { id: 'p6', name: '高齢者・車いす使用者', importance: 'S' },
+                { id: 'p7', name: '集合住宅・住宅', importance: 'A' },
+                { id: 'p8', name: '事務所・商業建築', importance: 'A' },
+                { id: 'p9', name: '公共建築', importance: 'A' },
+                { id: 'p10', name: '高齢者の医療・福祉', importance: 'A' },
+                { id: 'p11', name: '建築計画', importance: 'S' },
+                { id: 'p12', name: '設計・工事監理・契約', importance: 'B' },
+                { id: 'p13', name: '積算', importance: 'C' },
+                { id: 'p14', name: 'プロジェクトマネジメント', importance: 'B' }
+            ],
+            environment: [
+                { id: 'e1', name: '環境工学・用語', importance: 'A' },
+                { id: 'e2', name: '室内環境・換気', importance: 'A' },
+                { id: 'e3', name: '伝熱・結露', importance: 'A' },
+                { id: 'e4', name: '日照・日射', importance: 'B' },
+                { id: 'e5', name: '昼光・照明', importance: 'B' },
+                { id: 'e6', name: '音響', importance: 'B' },
+                { id: 'e7', name: '色彩', importance: 'C' },
+                { id: 'e8', name: '空気調和設備', importance: 'S' },
+                { id: 'e9', name: '給排水設備', importance: 'A' },
+                { id: 'e10', name: '照明設備', importance: 'B' },
+                { id: 'e11', name: '電気設備', importance: 'B' },
+                { id: 'e12', name: '消火・防災設備', importance: 'A' },
+                { id: 'e13', name: '建築設備', importance: 'A' },
+                { id: 'e14', name: '環境・省エネ', importance: 'A' }
+            ],
+            law: [
+                { id: 'l1', name: '建築基準法（単体規定）', importance: 'S' },
+                { id: 'l2', name: '建築基準法（集団規定）', importance: 'S' },
+                { id: 'l3', name: '都市計画法', importance: 'A' },
+                { id: 'l4', name: '消防法', importance: 'A' },
+                { id: 'l5', name: '建築士法', importance: 'B' }
+            ],
+            structure: [
+                { id: 's1', name: '許容応力度', importance: 'S' },
+                { id: 's2', name: '風圧力・地震力', importance: 'S' },
+                { id: 's3', name: '木造・軸組の設置', importance: 'A' },
+                { id: 's4', name: '木造建築物（その他）', importance: 'A' },
+                { id: 's5', name: '鉄筋コンクリート（一般）', importance: 'S' },
+                { id: 's6', name: '鉄筋コンクリート（配筋・定着）', importance: 'S' },
+                { id: 's7', name: '鉄筋コンクリート（耐震）', importance: 'S' },
+                { id: 's8', name: '鉄骨構造（一般）', importance: 'A' },
+                { id: 's9', name: '鉄骨構造（接合）', importance: 'A' },
+                { id: 's10', name: '鉄骨鉄筋コンクリート構造', importance: 'B' },
+                { id: 's11', name: '建築構造', importance: 'A' },
+                { id: 's12', name: '土質・地盤', importance: 'A' },
+                { id: 's13', name: '基礎', importance: 'A' },
+                { id: 's14', name: '耐震設計', importance: 'S' },
+                { id: 's15', name: '構造計画', importance: 'A' },
+                { id: 's16', name: '木材', importance: 'B' },
+                { id: 's17', name: 'コンクリート', importance: 'A' },
+                { id: 's18', name: '金属材料', importance: 'B' }
+            ],
+            construction: [
+                { id: 'c1', name: '施工計画', importance: 'A' },
+                { id: 'c2', name: '工事現場の管理等', importance: 'A' },
+                { id: 'c3', name: '材料管理', importance: 'B' },
+                { id: 'c4', name: '届出', importance: 'B' },
+                { id: 'c5', name: '地盤調査', importance: 'B' },
+                { id: 'c6', name: '仮設工事', importance: 'B' },
+                { id: 'c7', name: '土工事・山留め工事', importance: 'B' },
+                { id: 'c8', name: '杭地業工事', importance: 'A' },
+                { id: 'c9', name: '鉄筋工事', importance: 'A' },
+                { id: 'c10', name: '型枠工事', importance: 'A' },
+                { id: 'c11', name: 'コンクリート工事', importance: 'S' },
+                { id: 'c12', name: 'プレキャスト鉄筋コンクリート工事', importance: 'B' },
+                { id: 'c13', name: '鉄骨工事', importance: 'A' },
+                { id: 'c14', name: '木造軸組工法', importance: 'B' },
+                { id: 'c15', name: '防水工事', importance: 'A' },
+                { id: 'c16', name: 'ガラス工事', importance: 'B' },
+                { id: 'c17', name: '内装工事', importance: 'B' },
+                { id: 'c18', name: '外装工事設備・各種工事', importance: 'B' },
+                { id: 'c19', name: '耐震改修工事', importance: 'B' },
+                { id: 'c20', name: '改修工事', importance: 'B' },
+                { id: 'c21', name: '用語とその説明', importance: 'B' },
+                { id: 'c22', name: '請負契約', importance: 'B' }
+            ],
+            other: []
+        };
+        
+        // 初期化
+        window.onload = function() {
+            updateItems();
+        };
+        
+        // 学習項目のセレクトボックスを更新
+        function updateItems() {
+            const category = document.getElementById('study-category').value;
+            const itemSelect = document.getElementById('study-item');
+            const itemSelection = document.getElementById('item-selection');
+            const otherItem = document.getElementById('other-item');
+            
+            // その他カテゴリの場合は自由入力欄を表示
+            if (category === 'other') {
+                itemSelection.style.display = 'none';
+                otherItem.style.display = 'block';
+            } else {
+                itemSelection.style.display = 'block';
+                otherItem.style.display = 'none';
+                
+                // 既存のオプションをクリア
+                itemSelect.innerHTML = '';
+                
+                // 選択されたカテゴリの学習項目を追加
+                if (studyItems[category]) {
+                    studyItems[category].forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.id;
+                        option.textContent = item.name;
+                        itemSelect.appendChild(option);
+                    });
+                }
+            }
+        }
+        
+        // タブの切り替え
+        function switchTab(tabId) {
+            // すべてのタブコンテンツを非表示
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // すべてのタブを非アクティブ
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // 選択されたタブとコンテンツをアクティブに
+            document.getElementById(tabId).classList.add('active');
+            document.querySelector(`.tab[onclick="switchTab('${tabId}')"]`).classList.add('active');
+        }
+        
+        // タスクの完了/未完了を切り替え
+        function toggleTask(button) {
+            const task = button.parentElement;
+            if (task.classList.contains('done')) {
+                task.classList.remove('done');
+                button.textContent = '完了';
+            } else {
+                task.classList.add('done');
+                button.textContent = '戻す';
+            }
+        }
+        
+        // 新しいタスクを追加
+        function addTask() {
+            const taskName = prompt('タスク名を入力してください:');
+            if (taskName) {
+                const taskCategory = prompt('カテゴリを入力してください (planning, environment, law, structure, construction, other):');
+                const categoryClass = 'cat-' + (taskCategory || 'planning');
+                
+                const tasksContainer = document.getElementById('tasks');
+                const newTask = document.createElement('div');
+                newTask.className = 'task';
+                newTask.innerHTML = `
+                    <div>
+                        <span class="category ${categoryClass}">${getCategoryLabel(taskCategory)}</span>
+                        ${taskName}
+                    </div>
+                    <button onclick="toggleTask(this)">完了</button>
+                `;
+                tasksContainer.appendChild(newTask);
+            }
+        }
+        
+        // カテゴリのラベルを取得
+        function getCategoryLabel(category) {
+            const labels = {
+                'planning': '計画',
+                'environment': '環境',
+                'law': '法規',
+                'structure': '構造',
+                'construction': '施工',
+                'other': 'その他'
+            };
+            return labels[category] || '計画';
+        }
+        
+        // 学習記録を保存
+        function recordStudy() {
+            const date = document.getElementById('study-date').value;
+            const category = document.getElementById('study-category').value;
+            let itemName = '';
+            
+            if (category === 'other') {
+                itemName = document.getElementById('other-item-input').value || 'その他項目';
+            } else {
+                const itemSelect = document.getElementById('study-item');
+                itemName = itemSelect.options[itemSelect.selectedIndex].text;
+            }
+            
+            const understanding = document.getElementById('study-understanding').value;
+            const time = document.getElementById('study-time').value;
+            
+            // 履歴テーブルに追加
+            const historyTable = document.getElementById('history-tbody');
+            const newRow = document.createElement('tr');
+            
+            const dateObj = new Date(date);
+            const formattedDate = `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
+            
+            newRow.innerHTML = `
+                <td>${formattedDate}</td>
+                <td><span class="category cat-${category}">${getCategoryLabel(category)}</span> ${itemName}</td>
+                <td>${understanding}</td>
+                <td>${time}分</td>
+            `;
+            
+            historyTable.insertBefore(newRow, historyTable.firstChild);
+            
+            alert('学習を記録しました！');
+            
+            // フォームをリセット
+            if (category === 'other') {
+                document.getElementById('other-item-input').value = '';
+            }
+            document.getElementById('study-time').value = '30';
+        }
+        
+        // 設定を保存
+        function saveSettings() {
+            alert('設定を保存しました！');
+        }
+    </script>
+</body>
+</html>
