@@ -39,6 +39,13 @@
             border-radius: 4px;
             cursor: pointer;
         }
+        .btn-small {
+            font-size: 0.8rem;
+            padding: 2px 5px;
+        }
+        .btn-delete {
+            background-color: #f44336;
+        }
         select, input {
             width: 100%;
             padding: 8px;
@@ -154,6 +161,7 @@
                         <th>日付</th>
                         <th>項目</th>
                         <th>次回学習</th>
+                        <th>操作</th>
                     </tr>
                 </thead>
                 <tbody id="history-tbody"></tbody>
@@ -223,45 +231,13 @@
                 { id: 's1', name: '許容応力度' },
                 { id: 's2', name: '風圧力・地震力' },
                 { id: 's3', name: '木造・軸組の設置' },
-                { id: 's4', name: '木造建築物（その他）' },
-                { id: 's5', name: '鉄筋コンクリート（一般）' },
-                { id: 's6', name: '鉄筋コンクリート（配筋・定着）' },
-                { id: 's7', name: '鉄筋コンクリート（耐震）' },
-                { id: 's8', name: '鉄骨構造（一般）' },
-                { id: 's9', name: '鉄骨構造（接合）' },
-                { id: 's10', name: '鉄骨鉄筋コンクリート構造' },
-                { id: 's11', name: '建築構造' },
-                { id: 's12', name: '土質・地盤' },
-                { id: 's13', name: '基礎' },
-                { id: 's14', name: '耐震設計' },
-                { id: 's15', name: '構造計画' },
-                { id: 's16', name: '木材' },
-                { id: 's17', name: 'コンクリート' },
-                { id: 's18', name: '金属材料' }
+                { id: 's4', name: '木造建築物（その他）' }
             ],
             construction: [
                 { id: 'c1', name: '施工計画' },
                 { id: 'c2', name: '工事現場の管理等' },
                 { id: 'c3', name: '材料管理' },
-                { id: 'c4', name: '届出' },
-                { id: 'c5', name: '地盤調査' },
-                { id: 'c6', name: '仮設工事' },
-                { id: 'c7', name: '土工事・山留め工事' },
-                { id: 'c8', name: '杭地業工事' },
-                { id: 'c9', name: '鉄筋工事' },
-                { id: 'c10', name: '型枠工事' },
-                { id: 'c11', name: 'コンクリート工事' },
-                { id: 'c12', name: 'プレキャスト鉄筋コンクリート工事' },
-                { id: 'c13', name: '鉄骨工事' },
-                { id: 'c14', name: '木造軸組工法' },
-                { id: 'c15', name: '防水工事' },
-                { id: 'c16', name: 'ガラス工事' },
-                { id: 'c17', name: '内装工事' },
-                { id: 'c18', name: '外装工事設備・各種工事' },
-                { id: 'c19', name: '耐震改修工事' },
-                { id: 'c20', name: '改修工事' },
-                { id: 'c21', name: '用語とその説明' },
-                { id: 'c22', name: '請負契約' }
+                { id: 'c4', name: '届出' }
             ],
             other: []
         };
@@ -347,7 +323,7 @@
             
             if (appData.history.length === 0) {
                 const row = document.createElement('tr');
-                row.innerHTML = '<td colspan="3" style="text-align: center; color: #777;">履歴なし</td>';
+                row.innerHTML = '<td colspan="4" style="text-align: center; color: #777;">履歴なし</td>';
                 historyTable.appendChild(row);
                 return;
             }
@@ -357,7 +333,7 @@
                 return new Date(b.date) - new Date(a.date);
             });
             
-            sortedHistory.forEach(record => {
+            sortedHistory.forEach((record, index) => {
                 const row = document.createElement('tr');
                 const date = new Date(record.date);
                 const formattedDate = `${date.getMonth() + 1}/${date.getDate()}`;
@@ -387,9 +363,36 @@
                     <td>${formattedDate}</td>
                     <td><span class="category cat-${record.category}">${getCategoryLabel(record.category)}</span> ${record.itemName}</td>
                     <td>${nextReviewText}</td>
+                    <td><button class="btn-small btn-delete" onclick="deleteHistoryItem(${index})">削除</button></td>
                 `;
                 historyTable.appendChild(row);
             });
+        }
+        
+        // 履歴項目を削除
+        function deleteHistoryItem(index) {
+            if (confirm('この学習記録を削除してもよろしいですか？')) {
+                // 配列からインデックスの要素を削除
+                const sortedHistory = [...appData.history].sort((a, b) => {
+                    return new Date(b.date) - new Date(a.date);
+                });
+                
+                const recordToDelete = sortedHistory[index];
+                
+                // 元の配列から削除するために元のインデックスを探す
+                const originalIndex = appData.history.findIndex(record => 
+                    record.date === recordToDelete.date && 
+                    record.itemName === recordToDelete.itemName &&
+                    record.category === recordToDelete.category
+                );
+                
+                if (originalIndex !== -1) {
+                    appData.history.splice(originalIndex, 1);
+                    renderHistory();
+                    saveData();
+                    showNotification('学習記録を削除しました');
+                }
+            }
         }
         
         // 学習項目のセレクトボックスを更新
