@@ -8,11 +8,8 @@
         body{font-family:Arial,sans-serif;margin:0;padding:15px;background-color:#f5f5f5}
         h1,h2{color:#2196F3;margin-top:0}
         .box{background:white;padding:15px;margin-bottom:15px;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,0.1)}
-        .task{padding:8px;margin-bottom:5px;border-left:3px solid #2196F3;background-color:#f9f9f9;display:flex;justify-content:space-between}
-        .task.done{opacity:.6;text-decoration:line-through}
-        .task-buttons{display:flex;gap:5px}
         button{background-color:#2196F3;color:white;border:none;padding:5px 10px;border-radius:4px;cursor:pointer}
-        .btn-delete{background-color:#757575}
+        .btn-delete{background-color:#bdbdbd}
         select,input{width:100%;padding:8px;margin-bottom:10px;border:1px solid #ddd;border-radius:4px}
         table{width:100%;border-collapse:collapse}
         th,td{padding:8px;text-align:left;border-bottom:1px solid #ddd}
@@ -36,12 +33,6 @@
 <body>
     <div id="notification"></div>
     <h1>一級建築士試験 学習管理</h1>
-    
-    <div class="box">
-        <h2>今日の学習タスク</h2>
-        <div id="tasks"></div>
-        <button style="width:100%;margin-top:10px" onclick="addTask()">+ 新しいタスク</button>
-    </div>
     
     <div class="box">
         <h2>学習記録</h2>
@@ -105,13 +96,12 @@
             other:[]
         };
         
-        let appData={tasks:[],history:[],studyRecords:{},settings:{reviewPattern:[2,7,16,35,62]}};
+        let appData={history:[],studyRecords:{},settings:{reviewPattern:[2,7,16,35,62]}};
         
         window.onload=function(){
             loadData();
             document.getElementById('study-date').valueAsDate=new Date();
             updateItems();
-            renderTasks();
             renderHistory();
             document.getElementById('review-pattern').value=appData.settings.reviewPattern.join(', ');
         };
@@ -123,6 +113,8 @@
                 if(!appData.settings)appData.settings={reviewPattern:[2,7,16,35,62]};
                 if(!appData.settings.reviewPattern)appData.settings.reviewPattern=[2,7,16,35,62];
                 if(!appData.studyRecords)appData.studyRecords={};
+                // タスクリストを削除したのでtasksプロパティが不要になった
+                delete appData.tasks;
             }
         }
         
@@ -136,37 +128,6 @@
             notification.textContent=message;
             notification.style.display='block';
             setTimeout(()=>{notification.style.display='none';},2000);
-        }
-        
-        function renderTasks(){
-            const tasksContainer=document.getElementById('tasks');
-            tasksContainer.innerHTML='';
-            
-            if(appData.tasks.length===0){
-                tasksContainer.innerHTML='<div style="padding:8px;color:#777">タスクがありません</div>';
-                return;
-            }
-            
-            appData.tasks.forEach((task,index)=>{
-                const taskElement=document.createElement('div');
-                taskElement.className='task'+(task.completed?' done':'');
-                taskElement.innerHTML=`
-                    <div><span class="category cat-${task.category}">${getCategoryLabel(task.category)}</span>${task.name}</div>
-                    <div class="task-buttons">
-                        <button onclick="toggleTask(${index})">${task.completed?'戻す':'完了'}</button>
-                        <button class="btn-delete" onclick="deleteTask(${index})">削除</button>
-                    </div>
-                `;
-                tasksContainer.appendChild(taskElement);
-            });
-        }
-        
-        function deleteTask(index){
-            if(confirm('このタスクを削除してもよろしいですか？')){
-                appData.tasks.splice(index,1);
-                renderTasks();
-                saveData();
-            }
         }
         
         function renderHistory(){
@@ -256,39 +217,6 @@
             document.querySelectorAll('.tab').forEach(tab=>tab.classList.remove('active'));
             document.getElementById(tabId).classList.add('active');
             document.querySelector(`.tab[onclick="switchTab('${tabId}')"]`).classList.add('active');
-        }
-        
-        function toggleTask(index){
-            appData.tasks[index].completed=!appData.tasks[index].completed;
-            renderTasks();
-            saveData();
-        }
-        
-        function addTask(){
-            const taskName=prompt('タスク名を入力してください:');
-            if(!taskName)return;
-            
-            const categories=['planning','environment','law','structure','construction','other'];
-            const categoryLabels=['計画','環境・設備','法規','構造','施工','その他'];
-            
-            let categoryPrompt='以下からカテゴリを選択してください（番号を入力）:\n';
-            categories.forEach((cat,idx)=>{
-                categoryPrompt+=`${idx+1}: ${categoryLabels[idx]}\n`;
-            });
-            
-            const categoryInput=prompt(categoryPrompt,'1');
-            let taskCategory='planning';
-            
-            if(categoryInput&&!isNaN(parseInt(categoryInput))){
-                const idx=parseInt(categoryInput)-1;
-                if(idx>=0&&idx<categories.length){
-                    taskCategory=categories[idx];
-                }
-            }
-            
-            appData.tasks.push({name:taskName,category:taskCategory,completed:false});
-            renderTasks();
-            saveData();
         }
         
         function getCategoryLabel(category){
@@ -385,6 +313,7 @@
                         try{
                             appData=JSON.parse(event.target.result);
                             if(!appData.studyRecords)appData.studyRecords={};
+                            delete appData.tasks; // tasksプロパティを削除
                             saveData();
                             location.reload();
                         }catch(error){
@@ -400,8 +329,7 @@
         function clearData(){
             if(confirm('すべてのデータを削除します。この操作は元に戻せません。よろしいですか？')){
                 localStorage.removeItem('architect_study_data');
-                appData={tasks:[],history:[],studyRecords:{},settings:{reviewPattern:[2,7,16,35,62]}};
-                renderTasks();
+                appData={history:[],studyRecords:{},settings:{reviewPattern:[2,7,16,35,62]}};
                 renderHistory();
                 showNotification('データを削除しました');
             }
