@@ -112,6 +112,10 @@
             font-weight: bold;
             white-space: nowrap;
         }
+        .completed {
+            color: #4CAF50;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -231,13 +235,45 @@
                 { id: 's1', name: '許容応力度' },
                 { id: 's2', name: '風圧力・地震力' },
                 { id: 's3', name: '木造・軸組の設置' },
-                { id: 's4', name: '木造建築物（その他）' }
+                { id: 's4', name: '木造建築物（その他）' },
+                { id: 's5', name: '鉄筋コンクリート（一般）' },
+                { id: 's6', name: '鉄筋コンクリート（配筋・定着）' },
+                { id: 's7', name: '鉄筋コンクリート（耐震）' },
+                { id: 's8', name: '鉄骨構造（一般）' },
+                { id: 's9', name: '鉄骨構造（接合）' },
+                { id: 's10', name: '鉄骨鉄筋コンクリート構造' },
+                { id: 's11', name: '建築構造' },
+                { id: 's12', name: '土質・地盤' },
+                { id: 's13', name: '基礎' },
+                { id: 's14', name: '耐震設計' },
+                { id: 's15', name: '構造計画' },
+                { id: 's16', name: '木材' },
+                { id: 's17', name: 'コンクリート' },
+                { id: 's18', name: '金属材料' }
             ],
             construction: [
                 { id: 'c1', name: '施工計画' },
                 { id: 'c2', name: '工事現場の管理等' },
                 { id: 'c3', name: '材料管理' },
-                { id: 'c4', name: '届出' }
+                { id: 'c4', name: '届出' },
+                { id: 'c5', name: '地盤調査' },
+                { id: 'c6', name: '仮設工事' },
+                { id: 'c7', name: '土工事・山留め工事' },
+                { id: 'c8', name: '杭地業工事' },
+                { id: 'c9', name: '鉄筋工事' },
+                { id: 'c10', name: '型枠工事' },
+                { id: 'c11', name: 'コンクリート工事' },
+                { id: 'c12', name: 'プレキャスト鉄筋コンクリート工事' },
+                { id: 'c13', name: '鉄骨工事' },
+                { id: 'c14', name: '木造軸組工法' },
+                { id: 'c15', name: '防水工事' },
+                { id: 'c16', name: 'ガラス工事' },
+                { id: 'c17', name: '内装工事' },
+                { id: 'c18', name: '外装工事設備・各種工事' },
+                { id: 'c19', name: '耐震改修工事' },
+                { id: 'c20', name: '改修工事' },
+                { id: 'c21', name: '用語とその説明' },
+                { id: 'c22', name: '請負契約' }
             ],
             other: []
         };
@@ -246,6 +282,7 @@
         let appData = {
             tasks: [],
             history: [],
+            studyRecords: {}, // 項目ごとの学習記録（学習回数を追跡）
             settings: { 
                 examDate: '2025-07-27',
                 reviewPattern: [2, 7, 16, 35, 62]
@@ -274,6 +311,9 @@
                 }
                 if (!appData.settings.reviewPattern) {
                     appData.settings.reviewPattern = [2, 7, 16, 35, 62];
+                }
+                if (!appData.studyRecords) {
+                    appData.studyRecords = {};
                 }
             }
         }
@@ -338,9 +378,13 @@
                 const date = new Date(record.date);
                 const formattedDate = `${date.getMonth() + 1}/${date.getDate()}`;
                 
-                // 次回学習日の計算
+                // 次回学習日の表示
                 let nextReviewText = '-';
-                if (record.nextReview) {
+                
+                if (record.completed) {
+                    // 学習完了の場合
+                    nextReviewText = '<span class="completed">完了</span>';
+                } else if (record.nextReview) {
                     const nextDate = new Date(record.nextReview);
                     nextReviewText = `${nextDate.getMonth() + 1}/${nextDate.getDate()}`;
                     
@@ -487,18 +531,29 @@
         }
         
         // 次回学習日を計算
-        function calculateNextReviewDate(studyDate) {
+        function calculateNextReviewDate(studyDate, itemKey, isComplete = false) {
+            if (isComplete) {
+                return null; // 完了した場合はnullを返す
+            }
+            
             const date = new Date(studyDate);
             const pattern = appData.settings.reviewPattern;
             
-            // 復習パターンの最初の間隔を日数に追加
-            if (pattern && pattern.length > 0) {
-                date.setDate(date.getDate() + pattern[0]);
-            } else {
-                // デフォルトは2日後
-                date.setDate(date.getDate() + 2);
-            }
+            // 学習回数を取得（存在しない場合は0）
+            const studyCount = (appData.studyRecords[itemKey] || 0);
+            
+            // 復習パターンからインデックスを取得（最大値以上なら最後の値を使用）
+            const patternIndex = Math.min(studyCount, pattern.length - 1);
+            
+            // 対応する日数を追加
+            date.setDate(date.getDate() + pattern[patternIndex]);
+            
             return date;
+        }
+        
+        // 項目のキー生成
+        function generateItemKey(category, itemId, itemName) {
+            return category + ":" + (itemId || itemName);
         }
         
         // 学習記録を保存
@@ -525,8 +580,32 @@
                 itemName = itemSelect.options[itemSelect.selectedIndex].text;
             }
             
-            // 次回学習日を計算
-            const nextReview = calculateNextReviewDate(date);
+            // 項目の一意のキーを生成
+            const itemKey = generateItemKey(category, itemId, itemName);
+            
+            // 前回の学習記録を探し、同じ項目の学習がある場合は完了としてマーク
+            appData.history.forEach(record => {
+                const recordItemKey = generateItemKey(record.category, record.itemId, record.itemName);
+                
+                if (recordItemKey === itemKey && record.nextReview && !record.completed) {
+                    record.completed = true;
+                }
+            });
+            
+            // 学習回数を更新
+            if (!appData.studyRecords[itemKey]) {
+                appData.studyRecords[itemKey] = 0;
+            }
+            appData.studyRecords[itemKey]++;
+            
+            // 現在の学習回数
+            const studyCount = appData.studyRecords[itemKey];
+            
+            // 最終回のチェック（パターンの長さを超えると完了とする）
+            const isComplete = studyCount >= appData.settings.reviewPattern.length;
+            
+            // 次回学習日を計算（完了の場合はnull）
+            const nextReview = calculateNextReviewDate(date, itemKey, isComplete);
             
             // 学習履歴に追加
             appData.history.push({
@@ -534,7 +613,9 @@
                 category,
                 itemId,
                 itemName,
-                nextReview: nextReview.toISOString()
+                studyCount,
+                nextReview: nextReview ? nextReview.toISOString() : null,
+                completed: isComplete
             });
             
             renderHistory();
@@ -590,6 +671,12 @@
                         try {
                             const importedData = JSON.parse(event.target.result);
                             appData = importedData;
+                            
+                            // 必須フィールドの確認と初期化
+                            if (!appData.studyRecords) {
+                                appData.studyRecords = {};
+                            }
+                            
                             saveData();
                             location.reload();
                         } catch (error) {
@@ -609,6 +696,7 @@
                 appData = {
                     tasks: [],
                     history: [],
+                    studyRecords: {},
                     settings: { 
                         examDate: '2025-07-27',
                         reviewPattern: [2, 7, 16, 35, 62]
