@@ -5,32 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>一級建築士試験 学習管理</title>
     <style>
-        body{font-family:Arial,sans-serif;margin:0;padding:15px;background:#f5f5f5}
+        body{font-family:Arial,sans-serif;margin:0;padding:15px;background-color:#f5f5f5}
         h1,h2{color:#2196F3;margin-top:0}
-        .box{background:white;padding:15px;margin-bottom:15px;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
-        .task{padding:8px;margin-bottom:5px;border-left:3px solid #2196F3;background:#f9f9f9;display:flex;justify-content:space-between;align-items:center}
+        .box{background:white;padding:15px;margin-bottom:15px;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,0.1)}
+        .task{padding:8px;margin-bottom:5px;border-left:3px solid #2196F3;background-color:#f9f9f9;display:flex;justify-content:space-between}
         .task.done{opacity:.6;text-decoration:line-through}
-        .btns{display:flex;gap:5px}
-        button{background:#2196F3;color:white;border:none;padding:5px 10px;border-radius:4px;cursor:pointer}
-        .del{background:#757575}
+        .task-buttons{display:flex;gap:5px}
+        button{background-color:#2196F3;color:white;border:none;padding:5px 10px;border-radius:4px;cursor:pointer}
+        .btn-delete{background-color:#757575}
         select,input{width:100%;padding:8px;margin-bottom:10px;border:1px solid #ddd;border-radius:4px}
         table{width:100%;border-collapse:collapse}
         th,td{padding:8px;text-align:left;border-bottom:1px solid #ddd}
         .tabs{display:flex;margin-bottom:10px}
-        .tab{padding:8px 12px;cursor:pointer;background:#f1f1f1;border-right:1px solid #ddd}
-        .tab.active{background:#2196F3;color:white}
+        .tab{padding:8px 12px;cursor:pointer;background-color:#f1f1f1;border-right:1px solid #ddd}
+        .tab.active{background-color:#2196F3;color:white}
         .tab-content{display:none}
         .tab-content.active{display:block}
         .category{display:inline-block;padding:2px 5px;font-size:12px;border-radius:3px;color:white;margin-right:5px}
-        .cat-planning{background:#2196F3}.cat-environment{background:#00BCD4}.cat-law{background:#9C27B0}
-        .cat-structure{background:#FFC107}.cat-construction{background:#FF9800}.cat-other{background:#607D8B}
-        #note{position:fixed;top:20px;right:20px;padding:10px;background:#4CAF50;color:white;border-radius:4px;display:none;z-index:100}
-        .next{color:#E91E63;font-weight:bold}
-        .ok{color:#4CAF50;font-weight:bold}
+        .cat-planning{background-color:#2196F3}
+        .cat-environment{background-color:#00BCD4}
+        .cat-law{background-color:#9C27B0}
+        .cat-structure{background-color:#FFC107}
+        .cat-construction{background-color:#FF9800}
+        .cat-other{background-color:#607D8B}
+        #notification{position:fixed;top:20px;right:20px;padding:10px;background-color:#4CAF50;color:white;border-radius:4px;display:none;z-index:100}
+        .next-review{color:#E91E63;font-weight:bold}
+        .completed{color:#4CAF50;font-weight:bold}
     </style>
 </head>
 <body>
-    <div id="note"></div>
+    <div id="notification"></div>
     <h1>一級建築士試験 学習管理</h1>
     
     <div class="box">
@@ -41,8 +45,8 @@
     
     <div class="box">
         <h2>学習記録</h2>
-        <input type="date" id="date">
-        <select id="cat" onchange="updateItems()">
+        <input type="date" id="study-date">
+        <select id="study-category" onchange="updateItems()">
             <option value="planning">計画</option>
             <option value="environment">環境・設備</option>
             <option value="law">法規</option>
@@ -50,399 +54,341 @@
             <option value="construction">施工</option>
             <option value="other">その他</option>
         </select>
-        <div id="item-sel">
-            <select id="item"></select>
+        <div id="item-selection">
+            <select id="study-item"></select>
         </div>
         <div id="other-item" style="display:none">
-            <input type="text" id="other" placeholder="例：過去問演習（計画）">
+            <input type="text" id="other-item-input" placeholder="例：過去問演習（計画）">
         </div>
-        <button style="width:100%" onclick="record()">記録する</button>
+        <button style="width:100%" onclick="recordStudy()">記録する</button>
     </div>
     
     <div class="box">
         <div class="tabs">
-            <div class="tab active" onclick="switchTab('t1')">学習履歴</div>
-            <div class="tab" onclick="switchTab('t2')">設定</div>
+            <div class="tab active" onclick="switchTab('tab1')">学習履歴</div>
+            <div class="tab" onclick="switchTab('tab2')">設定</div>
         </div>
         
-        <div id="t1" class="tab-content active">
+        <div id="tab1" class="tab-content active">
             <table>
                 <thead>
                     <tr>
                         <th>日付</th>
                         <th>項目</th>
-                        <th>次回</th>
+                        <th>次回学習</th>
                         <th>操作</th>
                     </tr>
                 </thead>
-                <tbody id="hist"></tbody>
+                <tbody id="history-tbody"></tbody>
             </table>
         </div>
         
-        <div id="t2" class="tab-content">
-            <label for="exam">試験日</label>
-            <input type="date" id="exam" value="2025-07-27">
-            
-            <label for="pattern">復習間隔（日数）</label>
-            <input type="text" id="pattern" placeholder="例: 2, 7, 16, 35, 62">
-            
-            <button style="width:100%;margin-top:10px" onclick="saveSet()">設定保存</button>
+        <div id="tab2" class="tab-content">
+            <label for="review-pattern">復習間隔（日数）</label>
+            <input type="text" id="review-pattern" placeholder="例: 2, 7, 16, 35, 62">
+            <button style="width:100%;margin-top:10px" onclick="saveSettings()">設定保存</button>
             <div style="margin-top:20px">
-                <button onclick="exp()">データ保存</button>
-                <button onclick="imp()">データ読込</button>
-                <button class="del" onclick="clear()">データ削除</button>
+                <button onclick="exportData()">データ保存</button>
+                <button onclick="importData()">データ読込</button>
+                <button class="btn-delete" onclick="clearData()">データ削除</button>
             </div>
         </div>
     </div>
     
     <script>
-        // 学習項目データ - 計画/環境/法規は省略
-        const items = {
-            structure: [
-                {id:'s1',name:'許容応力度'},{id:'s2',name:'風圧力・地震力'},{id:'s3',name:'木造・軸組の設置'},
-                {id:'s4',name:'木造建築物（その他）'},{id:'s5',name:'鉄筋コンクリート（一般）'},
-                {id:'s6',name:'鉄筋コンクリート（配筋・定着）'},{id:'s7',name:'鉄筋コンクリート（耐震）'},
-                {id:'s8',name:'鉄骨構造（一般）'},{id:'s9',name:'鉄骨構造（接合）'},
-                {id:'s10',name:'鉄骨鉄筋コンクリート構造'},{id:'s11',name:'建築構造'},{id:'s12',name:'土質・地盤'},
-                {id:'s13',name:'基礎'},{id:'s14',name:'耐震設計'},{id:'s15',name:'構造計画'},{id:'s16',name:'木材'},
-                {id:'s17',name:'コンクリート'},{id:'s18',name:'金属材料'}
-            ],
-            construction: [
-                {id:'c1',name:'施工計画'},{id:'c2',name:'工事現場の管理等'},{id:'c3',name:'材料管理'},
-                {id:'c4',name:'届出'},{id:'c5',name:'地盤調査'},{id:'c6',name:'仮設工事'},
-                {id:'c7',name:'土工事・山留め工事'},{id:'c8',name:'杭地業工事'},{id:'c9',name:'鉄筋工事'},
-                {id:'c10',name:'型枠工事'},{id:'c11',name:'コンクリート工事'},
-                {id:'c12',name:'プレキャスト鉄筋コンクリート工事'},{id:'c13',name:'鉄骨工事'},
-                {id:'c14',name:'木造軸組工法'},{id:'c15',name:'防水工事'},{id:'c16',name:'ガラス工事'},
-                {id:'c17',name:'内装工事'},{id:'c18',name:'外装工事設備・各種工事'},{id:'c19',name:'耐震改修工事'},
-                {id:'c20',name:'改修工事'},{id:'c21',name:'用語とその説明'},{id:'c22',name:'請負契約'}
-            ],
-            planning:[],environment:[],law:[],other:[]
+        const studyItems={
+            planning:[{id:'p1',name:'建築設計の手法等'},{id:'p2',name:'建築史'},{id:'p3',name:'周辺環境・まちづくり'},{id:'p4',name:'開口部'},{id:'p5',name:'各部の寸法'},{id:'p6',name:'高齢者・車いす使用者'},{id:'p7',name:'集合住宅・住宅'},{id:'p8',name:'事務所・商業建築'},{id:'p9',name:'公共建築'},{id:'p10',name:'高齢者の医療・福祉'},{id:'p11',name:'建築計画'},{id:'p12',name:'設計・工事監理・契約'},{id:'p13',name:'積算'},{id:'p14',name:'プロジェクトマネジメント'}],
+            environment:[{id:'e1',name:'環境工学・用語'},{id:'e2',name:'室内環境・換気'},{id:'e3',name:'伝熱・結露'},{id:'e4',name:'日照・日射'},{id:'e5',name:'昼光・照明'},{id:'e6',name:'音響'},{id:'e7',name:'色彩'},{id:'e8',name:'空気調和設備'},{id:'e9',name:'給排水設備'},{id:'e10',name:'照明設備'},{id:'e11',name:'電気設備'},{id:'e12',name:'消火・防災設備'},{id:'e13',name:'建築設備'},{id:'e14',name:'環境・省エネ'}],
+            law:[{id:'l1',name:'建築基準法（単体規定）'},{id:'l2',name:'建築基準法（集団規定）'},{id:'l3',name:'都市計画法'},{id:'l4',name:'消防法'},{id:'l5',name:'建築士法'}],
+            structure:[{id:'s1',name:'許容応力度'},{id:'s2',name:'風圧力・地震力'},{id:'s3',name:'木造・軸組の設置'},{id:'s4',name:'木造建築物（その他）'},{id:'s5',name:'鉄筋コンクリート（一般）'},{id:'s6',name:'鉄筋コンクリート（配筋・定着）'},{id:'s7',name:'鉄筋コンクリート（耐震）'},{id:'s8',name:'鉄骨構造（一般）'},{id:'s9',name:'鉄骨構造（接合）'},{id:'s10',name:'鉄骨鉄筋コンクリート構造'},{id:'s11',name:'建築構造'},{id:'s12',name:'土質・地盤'},{id:'s13',name:'基礎'},{id:'s14',name:'耐震設計'},{id:'s15',name:'構造計画'},{id:'s16',name:'木材'},{id:'s17',name:'コンクリート'},{id:'s18',name:'金属材料'}],
+            construction:[{id:'c1',name:'施工計画'},{id:'c2',name:'工事現場の管理等'},{id:'c3',name:'材料管理'},{id:'c4',name:'届出'},{id:'c5',name:'地盤調査'},{id:'c6',name:'仮設工事'},{id:'c7',name:'土工事・山留め工事'},{id:'c8',name:'杭地業工事'},{id:'c9',name:'鉄筋工事'},{id:'c10',name:'型枠工事'},{id:'c11',name:'コンクリート工事'},{id:'c12',name:'プレキャスト鉄筋コンクリート工事'},{id:'c13',name:'鉄骨工事'},{id:'c14',name:'木造軸組工法'},{id:'c15',name:'防水工事'},{id:'c16',name:'ガラス工事'},{id:'c17',name:'内装工事'},{id:'c18',name:'外装工事設備・各種工事'},{id:'c19',name:'耐震改修工事'},{id:'c20',name:'改修工事'},{id:'c21',name:'用語とその説明'},{id:'c22',name:'請負契約'}],
+            other:[]
         };
         
-        let data = {tasks:[],history:[],studyRecords:{},settings:{examDate:'2025-07-27',pattern:[2,7,16,35,62]}};
+        let appData={tasks:[],history:[],studyRecords:{},settings:{reviewPattern:[2,7,16,35,62]}};
         
-        window.onload = function() {
-            load();
-            document.getElementById('date').valueAsDate = new Date();
+        window.onload=function(){
+            loadData();
+            document.getElementById('study-date').valueAsDate=new Date();
             updateItems();
             renderTasks();
             renderHistory();
-            document.getElementById('exam').value = data.settings.examDate;
-            document.getElementById('pattern').value = data.settings.pattern.join(', ');
+            document.getElementById('review-pattern').value=appData.settings.reviewPattern.join(', ');
         };
         
-        function load() {
-            const saved = localStorage.getItem('architect_data');
-            if (saved) {
-                data = JSON.parse(saved);
-                if (!data.settings) data.settings = {examDate:'2025-07-27',pattern:[2,7,16,35,62]};
-                if (!data.settings.pattern) data.settings.pattern = [2,7,16,35,62];
-                if (!data.studyRecords) data.studyRecords = {};
+        function loadData(){
+            const data=localStorage.getItem('architect_study_data');
+            if(data){
+                appData=JSON.parse(data);
+                if(!appData.settings)appData.settings={reviewPattern:[2,7,16,35,62]};
+                if(!appData.settings.reviewPattern)appData.settings.reviewPattern=[2,7,16,35,62];
+                if(!appData.studyRecords)appData.studyRecords={};
             }
         }
         
-        function save() {
-            localStorage.setItem('architect_data', JSON.stringify(data));
-            notify('保存しました');
+        function saveData(){
+            localStorage.setItem('architect_study_data',JSON.stringify(appData));
+            showNotification('データを保存しました');
         }
         
-        function notify(msg) {
-            const note = document.getElementById('note');
-            note.textContent = msg;
-            note.style.display = 'block';
-            setTimeout(() => {note.style.display = 'none';}, 2000);
+        function showNotification(message){
+            const notification=document.getElementById('notification');
+            notification.textContent=message;
+            notification.style.display='block';
+            setTimeout(()=>{notification.style.display='none';},2000);
         }
         
-        function renderTasks() {
-            const cont = document.getElementById('tasks');
-            cont.innerHTML = '';
+        function renderTasks(){
+            const tasksContainer=document.getElementById('tasks');
+            tasksContainer.innerHTML='';
             
-            if (data.tasks.length === 0) {
-                cont.innerHTML = '<div style="padding:8px;color:#777">タスクがありません</div>';
+            if(appData.tasks.length===0){
+                tasksContainer.innerHTML='<div style="padding:8px;color:#777">タスクがありません</div>';
                 return;
             }
             
-            data.tasks.forEach((task, i) => {
-                const el = document.createElement('div');
-                el.className = 'task' + (task.done ? ' done' : '');
-                el.innerHTML = `
-                    <div>
-                        <span class="category cat-${task.cat}">${getLabel(task.cat)}</span>
-                        ${task.name}
-                    </div>
-                    <div class="btns">
-                        <button onclick="toggle(${i})">${task.done ? '戻す' : '完了'}</button>
-                        <button class="del" onclick="delTask(${i})">削除</button>
+            appData.tasks.forEach((task,index)=>{
+                const taskElement=document.createElement('div');
+                taskElement.className='task'+(task.completed?' done':'');
+                taskElement.innerHTML=`
+                    <div><span class="category cat-${task.category}">${getCategoryLabel(task.category)}</span>${task.name}</div>
+                    <div class="task-buttons">
+                        <button onclick="toggleTask(${index})">${task.completed?'戻す':'完了'}</button>
+                        <button class="btn-delete" onclick="deleteTask(${index})">削除</button>
                     </div>
                 `;
-                cont.appendChild(el);
+                tasksContainer.appendChild(taskElement);
             });
         }
         
-        function delTask(i) {
-            if (confirm('このタスクを削除しますか？')) {
-                data.tasks.splice(i, 1);
+        function deleteTask(index){
+            if(confirm('このタスクを削除してもよろしいですか？')){
+                appData.tasks.splice(index,1);
                 renderTasks();
-                save();
+                saveData();
             }
         }
         
-        function renderHistory() {
-            const table = document.getElementById('hist');
-            table.innerHTML = '';
+        function renderHistory(){
+            const historyTable=document.getElementById('history-tbody');
+            historyTable.innerHTML='';
             
-            if (data.history.length === 0) {
-                const row = document.createElement('tr');
-                row.innerHTML = '<td colspan="4" style="text-align:center;color:#777">履歴なし</td>';
-                table.appendChild(row);
+            if(appData.history.length===0){
+                historyTable.innerHTML='<tr><td colspan="4" style="text-align:center;color:#777">履歴なし</td></tr>';
                 return;
             }
             
-            const sorted = [...data.history].sort((a, b) => new Date(b.date) - new Date(a.date));
-            
-            sorted.forEach((rec, i) => {
-                const row = document.createElement('tr');
-                const date = new Date(rec.date);
-                const fmtDate = `${date.getMonth()+1}/${date.getDate()}`;
+            [...appData.history].sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach((record,index)=>{
+                const date=new Date(record.date);
+                const formattedDate=`${date.getMonth()+1}/${date.getDate()}`;
                 
-                let nextText = '-';
-                
-                if (rec.done) {
-                    nextText = '<span class="ok">完了</span>';
-                } else if (rec.next) {
-                    const nextDate = new Date(rec.next);
-                    nextText = `${nextDate.getMonth()+1}/${nextDate.getDate()}`;
+                let nextReviewText='-';
+                if(record.completed){
+                    nextReviewText='<span class="completed">完了</span>';
+                }else if(record.nextReview){
+                    const nextDate=new Date(record.nextReview);
+                    nextReviewText=`${nextDate.getMonth()+1}/${nextDate.getDate()}`;
                     
-                    const today = new Date();
-                    today.setHours(0,0,0,0);
+                    const today=new Date();today.setHours(0,0,0,0);
                     
-                    if (nextDate < today) {
-                        nextText = `<span class="next">期限切れ (${nextText})</span>`;
-                    } else if (
-                        nextDate.getDate() === today.getDate() && 
-                        nextDate.getMonth() === today.getMonth() && 
-                        nextDate.getFullYear() === today.getFullYear()
-                    ) {
-                        nextText = `<span class="next">今日 (${nextText})</span>`;
+                    if(nextDate<today){
+                        nextReviewText=`<span class="next-review">期限切れ (${nextReviewText})</span>`;
+                    }else if(nextDate.getDate()===today.getDate()&&nextDate.getMonth()===today.getMonth()&&nextDate.getFullYear()===today.getFullYear()){
+                        nextReviewText=`<span class="next-review">今日 (${nextReviewText})</span>`;
                     }
                 }
                 
-                row.innerHTML = `
-                    <td>${fmtDate}</td>
-                    <td><span class="category cat-${rec.cat}">${getLabel(rec.cat)}</span> ${rec.item}</td>
-                    <td>${nextText}</td>
-                    <td><button class="del" onclick="delHist(${i})">削除</button></td>
+                const row=document.createElement('tr');
+                row.innerHTML=`
+                    <td>${formattedDate}</td>
+                    <td><span class="category cat-${record.category}">${getCategoryLabel(record.category)}</span>${record.itemName}</td>
+                    <td>${nextReviewText}</td>
+                    <td><button class="btn-delete" onclick="deleteHistoryItem(${index})">削除</button></td>
                 `;
-                table.appendChild(row);
+                historyTable.appendChild(row);
             });
         }
         
-        function delHist(i) {
-            if (confirm('この記録を削除しますか？')) {
-                const sorted = [...data.history].sort((a, b) => new Date(b.date) - new Date(a.date));
-                const toDel = sorted[i];
-                const idx = data.history.findIndex(r => 
-                    r.date === toDel.date && r.item === toDel.item && r.cat === toDel.cat
+        function deleteHistoryItem(index){
+            if(confirm('この学習記録を削除してもよろしいですか？')){
+                const sortedHistory=[...appData.history].sort((a,b)=>new Date(b.date)-new Date(a.date));
+                const recordToDelete=sortedHistory[index];
+                
+                const originalIndex=appData.history.findIndex(record=>
+                    record.date===recordToDelete.date&&
+                    record.itemName===recordToDelete.itemName&&
+                    record.category===recordToDelete.category
                 );
                 
-                if (idx !== -1) {
-                    data.history.splice(idx, 1);
+                if(originalIndex!==-1){
+                    appData.history.splice(originalIndex,1);
                     renderHistory();
-                    save();
+                    saveData();
                 }
             }
         }
         
-        function updateItems() {
-            const cat = document.getElementById('cat').value;
-            const sel = document.getElementById('item');
-            const itemSel = document.getElementById('item-sel');
-            const other = document.getElementById('other-item');
+        function updateItems(){
+            const category=document.getElementById('study-category').value;
+            const itemSelect=document.getElementById('study-item');
+            const itemSelection=document.getElementById('item-selection');
+            const otherItem=document.getElementById('other-item');
             
-            if (cat === 'other') {
-                itemSel.style.display = 'none';
-                other.style.display = 'block';
-            } else {
-                itemSel.style.display = 'block';
-                other.style.display = 'none';
-                sel.innerHTML = '';
+            if(category==='other'){
+                itemSelection.style.display='none';
+                otherItem.style.display='block';
+            }else{
+                itemSelection.style.display='block';
+                otherItem.style.display='none';
+                itemSelect.innerHTML='';
                 
-                // サンプルデータを設定（本来は完全なデータを使用）
-                const catItems = cat === 'structure' ? items.structure : 
-                                 cat === 'construction' ? items.construction : 
-                                 [{id:'1',name:'項目1'},{id:'2',name:'項目2'},{id:'3',name:'項目3'}];
-                
-                catItems.forEach(item => {
-                    const opt = document.createElement('option');
-                    opt.value = item.id;
-                    opt.textContent = item.name;
-                    sel.appendChild(opt);
+                studyItems[category]?.forEach(item=>{
+                    const option=document.createElement('option');
+                    option.value=item.id;
+                    option.textContent=item.name;
+                    itemSelect.appendChild(option);
                 });
             }
         }
         
-        function switchTab(id) {
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.getElementById(id).classList.add('active');
-            document.querySelector(`.tab[onclick="switchTab('${id}')"]`).classList.add('active');
+        function switchTab(tabId){
+            document.querySelectorAll('.tab-content').forEach(content=>content.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(tab=>tab.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            document.querySelector(`.tab[onclick="switchTab('${tabId}')"]`).classList.add('active');
         }
         
-        function toggle(i) {
-            data.tasks[i].done = !data.tasks[i].done;
+        function toggleTask(index){
+            appData.tasks[index].completed=!appData.tasks[index].completed;
             renderTasks();
-            save();
+            saveData();
         }
         
-        function addTask() {
-            const name = prompt('タスク名:');
-            if (!name) return;
+        function addTask(){
+            const taskName=prompt('タスク名を入力してください:');
+            if(!taskName)return;
             
-            const cats = ['planning', 'environment', 'law', 'structure', 'construction', 'other'];
-            const def = 'planning';
+            const categories=['planning','environment','law','structure','construction','other'];
+            const categoryLabels=['計画','環境・設備','法規','構造','施工','その他'];
             
-            let prompt = '以下からカテゴリを選択（番号入力）:\n';
-            cats.forEach((c, i) => prompt += `${i+1}: ${getLabel(c)}\n`);
+            let categoryPrompt='以下からカテゴリを選択してください（番号を入力）:\n';
+            categories.forEach((cat,idx)=>{
+                categoryPrompt+=`${idx+1}: ${categoryLabels[idx]}\n`;
+            });
             
-            const input = prompt(prompt, '1');
-            let cat = def;
+            const categoryInput=prompt(categoryPrompt,'1');
+            let taskCategory='planning';
             
-            if (input && !isNaN(parseInt(input))) {
-                const i = parseInt(input) - 1;
-                if (i >= 0 && i < cats.length) cat = cats[i];
-            }
-            
-            data.tasks.push({name, cat, done: false});
-            renderTasks();
-            save();
-        }
-        
-        function getLabel(cat) {
-            return {
-                'planning': '計画',
-                'environment': '環境',
-                'law': '法規',
-                'structure': '構造',
-                'construction': '施工',
-                'other': 'その他'
-            }[cat] || '計画';
-        }
-        
-        function nextDate(date, key, complete = false) {
-            if (complete) return null;
-            
-            const d = new Date(date);
-            const pattern = data.settings.pattern;
-            const count = data.studyRecords[key] || 0;
-            const idx = Math.min(count, pattern.length - 1);
-            
-            d.setDate(d.getDate() + pattern[idx]);
-            return d;
-        }
-        
-        function itemKey(cat, id, name) {
-            return cat + ":" + (id || name);
-        }
-        
-        function record() {
-            const date = document.getElementById('date').value;
-            if (!date) {
-                alert('日付を選択してください');
-                return;
-            }
-            
-            const cat = document.getElementById('cat').value;
-            let id = '';
-            let item = '';
-            
-            if (cat === 'other') {
-                item = document.getElementById('other').value;
-                if (!item) {
-                    alert('項目名を入力してください');
-                    return;
+            if(categoryInput&&!isNaN(parseInt(categoryInput))){
+                const idx=parseInt(categoryInput)-1;
+                if(idx>=0&&idx<categories.length){
+                    taskCategory=categories[idx];
                 }
-            } else {
-                const sel = document.getElementById('item');
-                id = sel.value;
-                item = sel.options[sel.selectedIndex].text;
             }
             
-            const key = itemKey(cat, id, item);
+            appData.tasks.push({name:taskName,category:taskCategory,completed:false});
+            renderTasks();
+            saveData();
+        }
+        
+        function getCategoryLabel(category){
+            return {planning:'計画',environment:'環境',law:'法規',structure:'構造',construction:'施工',other:'その他'}[category]||'計画';
+        }
+        
+        function calculateNextReviewDate(studyDate,itemKey,isComplete=false){
+            if(isComplete)return null;
             
-            data.history.forEach(r => {
-                const rKey = itemKey(r.cat, r.id, r.item);
-                if (rKey === key && r.next && !r.done) r.done = true;
+            const date=new Date(studyDate);
+            const pattern=appData.settings.reviewPattern;
+            const studyCount=(appData.studyRecords[itemKey]||0);
+            const patternIndex=Math.min(studyCount,pattern.length-1);
+            
+            date.setDate(date.getDate()+pattern[patternIndex]);
+            return date;
+        }
+        
+        function recordStudy(){
+            const date=document.getElementById('study-date').value;
+            if(!date){alert('日付を選択してください');return;}
+            
+            const category=document.getElementById('study-category').value;
+            let itemId='',itemName='';
+            
+            if(category==='other'){
+                itemName=document.getElementById('other-item-input').value;
+                if(!itemName){alert('項目名を入力してください');return;}
+            }else{
+                const itemSelect=document.getElementById('study-item');
+                itemId=itemSelect.value;
+                itemName=itemSelect.options[itemSelect.selectedIndex].text;
+            }
+            
+            const itemKey=category+":"+(itemId||itemName);
+            
+            appData.history.forEach(record=>{
+                const recordItemKey=record.category+":"+(record.itemId||record.itemName);
+                if(recordItemKey===itemKey&&record.nextReview&&!record.completed){
+                    record.completed=true;
+                }
             });
             
-            if (!data.studyRecords[key]) data.studyRecords[key] = 0;
-            data.studyRecords[key]++;
+            if(!appData.studyRecords[itemKey])appData.studyRecords[itemKey]=0;
+            appData.studyRecords[itemKey]++;
             
-            const count = data.studyRecords[key];
-            const complete = count >= data.settings.pattern.length;
-            const next = nextDate(date, key, complete);
+            const studyCount=appData.studyRecords[itemKey];
+            const isComplete=studyCount>=appData.settings.reviewPattern.length;
+            const nextReview=calculateNextReviewDate(date,itemKey,isComplete);
             
-            data.history.push({
-                date,
-                cat,
-                id,
-                item,
-                count,
-                next: next ? next.toISOString() : null,
-                done: complete
+            appData.history.push({
+                date,category,itemId,itemName,studyCount,
+                nextReview:nextReview?nextReview.toISOString():null,
+                completed:isComplete
             });
             
+            if(category==='other')document.getElementById('other-item-input').value='';
             renderHistory();
-            save();
-            
-            if (cat === 'other') document.getElementById('other').value = '';
+            saveData();
         }
         
-        function saveSet() {
-            data.settings.examDate = document.getElementById('exam').value;
-            
-            const input = document.getElementById('pattern').value;
-            if (input) {
-                try {
-                    const pattern = input.split(',').map(s => parseInt(s.trim()));
-                    if (pattern.length > 0 && !pattern.some(isNaN)) {
-                        data.settings.pattern = pattern;
+        function saveSettings(){
+            const patternInput=document.getElementById('review-pattern').value;
+            if(patternInput){
+                try{
+                    const pattern=patternInput.split(',').map(s=>parseInt(s.trim()));
+                    if(pattern.length>0&&!pattern.some(isNaN)){
+                        appData.settings.reviewPattern=pattern;
                     }
-                } catch (e) {
-                    console.error('Invalid pattern:', e);
-                }
+                }catch(e){}
             }
-            
-            save();
+            saveData();
         }
         
-        function exp() {
-            const str = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data));
-            const a = document.createElement('a');
-            a.setAttribute("href", str);
-            a.setAttribute("download", "architect_data.json");
+        function exportData(){
+            const dataStr="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(appData));
+            const a=document.createElement('a');
+            a.setAttribute("href",dataStr);
+            a.setAttribute("download","architect_study_data.json");
             document.body.appendChild(a);
             a.click();
             a.remove();
         }
         
-        function imp() {
-            if (confirm('データを上書きします。よろしいですか？')) {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = '.json';
-                input.onchange = e => {
-                    const file = e.target.files[0];
-                    const reader = new FileReader();
-                    reader.onload = function(event) {
-                        try {
-                            const imported = JSON.parse(event.target.result);
-                            data = imported;
-                            if (!data.studyRecords) data.studyRecords = {};
-                            save();
+        function importData(){
+            if(confirm('データをインポートすると現在のデータが上書きされます。よろしいですか？')){
+                const input=document.createElement('input');
+                input.type='file';
+                input.accept='.json';
+                input.onchange=e=>{
+                    const file=e.target.files[0];
+                    const reader=new FileReader();
+                    reader.onload=function(event){
+                        try{
+                            appData=JSON.parse(event.target.result);
+                            if(!appData.studyRecords)appData.studyRecords={};
+                            saveData();
                             location.reload();
-                        } catch (error) {
-                            alert('読込エラー: ' + error);
+                        }catch(error){
+                            alert('データの読み込みに失敗しました: '+error);
                         }
                     };
                     reader.readAsText(file);
@@ -451,18 +397,13 @@
             }
         }
         
-        function clear() {
-            if (confirm('全データを削除します。この操作は元に戻せません。')) {
-                localStorage.removeItem('architect_data');
-                data = {
-                    tasks: [],
-                    history: [],
-                    studyRecords: {},
-                    settings: {examDate: '2025-07-27', pattern: [2, 7, 16, 35, 62]}
-                };
+        function clearData(){
+            if(confirm('すべてのデータを削除します。この操作は元に戻せません。よろしいですか？')){
+                localStorage.removeItem('architect_study_data');
+                appData={tasks:[],history:[],studyRecords:{},settings:{reviewPattern:[2,7,16,35,62]}};
                 renderTasks();
                 renderHistory();
-                notify('削除しました');
+                showNotification('データを削除しました');
             }
         }
     </script>
