@@ -96,7 +96,7 @@
             other:[]
         };
         
-        let appData={history:[],studyRecords:{},settings:{reviewPattern:[2,7,16,35,62]}};
+        let appData={history:[],settings:{reviewPattern:[2,7,16,35,62]}};
         
         window.onload=function(){
             loadData();
@@ -112,42 +112,9 @@
                 appData=JSON.parse(data);
                 if(!appData.settings)appData.settings={reviewPattern:[2,7,16,35,62]};
                 if(!appData.settings.reviewPattern)appData.settings.reviewPattern=[2,7,16,35,62];
-                if(!appData.studyRecords)appData.studyRecords={};
+                // studyRecordsプロパティは不要になったので削除
+                delete appData.studyRecords;
                 delete appData.tasks;
-                
-                // 学習記録数を再計算（修正点）
-                recalculateStudyRecords();
-            }
-        }
-        
-        // 学習記録数を再計算する関数
-        function recalculateStudyRecords() {
-            // studyRecordsをリセット
-            appData.studyRecords = {};
-            
-            // 現在の履歴から各項目の学習回数を再集計
-            if (appData.history && appData.history.length > 0) {
-                appData.history.forEach(record => {
-                    const itemKey = generateItemKey(record.category, record.itemId, record.itemName);
-                    
-                    // 学習回数のカウント
-                    if (!appData.studyRecords[itemKey]) {
-                        appData.studyRecords[itemKey] = 0;
-                    }
-                    
-                    // studyCountプロパティがない古いデータの場合は1としてカウント
-                    if (typeof record.studyCount === 'number') {
-                        // 同じ項目の中で最大の学習回数を採用
-                        if (record.studyCount > appData.studyRecords[itemKey]) {
-                            appData.studyRecords[itemKey] = record.studyCount;
-                        }
-                    } else {
-                        // 古いデータの場合は存在するだけで1回としてカウント
-                        if (appData.studyRecords[itemKey] < 1) {
-                            appData.studyRecords[itemKey] = 1;
-                        }
-                    }
-                });
             }
         }
         
@@ -163,6 +130,26 @@
             setTimeout(()=>{notification.style.display='none';},2000);
         }
         
+        // 特定の項目の学習回数をカウント
+        function countStudyOccurrences(category, itemId, itemName) {
+            if (!appData.history || appData.history.length === 0) return 0;
+            
+            const itemKey = generateItemKey(category, itemId, itemName);
+            let count = 0;
+            
+            // 日付でソートして古い順に処理
+            const sortedHistory = [...appData.history].sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            for (const record of sortedHistory) {
+                const recordKey = generateItemKey(record.category, record.itemId, record.itemName);
+                if (recordKey === itemKey) {
+                    count++;
+                }
+            }
+            
+            return count;
+        }
+        
         function renderHistory(){
             const historyTable=document.getElementById('history-tbody');
             historyTable.innerHTML='';
@@ -176,10 +163,36 @@
                 const date=new Date(record.date);
                 const formattedDate=`${date.getMonth()+1}/${date.getDate()}`;
                 
+                // 学習回数を数える
+                const itemKey = generateItemKey(record.category, record.itemId, record.itemName);
+                const currentCount = countStudyOccurrences(record.category, record.itemId, record.itemName);
+                
+                // この記録が何回目の学習か確認（日付の古い順でカウント）
+                const sortedHistory = [...appData.history].sort((a, b) => new Date(a.date) - new Date(b.date));
+                const recordIndex = sortedHistory.findIndex(r => 
+                    r.date === record.date && 
+                    r.category === record.category && 
+                    r.itemName === record.itemName
+                );
+                
+                // 同じ項目で古い日付のレコード数を数える
+                let thisRecordNumber = 0;
+                for (let i = 0; i <= recordIndex; i++) {
+                    const r = sortedHistory[i];
+                    const rKey = generateItemKey(r.category, r.itemId, r.itemName);
+                    if (rKey === itemKey) {
+                        thisRecordNumber++;
+                    }
+                }
+                
                 let nextReviewText='-';
-                if(record.completed){
+                
+                // 最終回の学習が完了している場合
+                if (thisRecordNumber === currentCount && currentCount >= appData.settings.reviewPattern.length) {
                     nextReviewText='<span class="completed">完了</span>';
-                }else if(record.nextReview){
+                } 
+                // 次回学習日が設定されている場合
+                else if (record.nextReview) {
                     const nextDate=new Date(record.nextReview);
                     nextReviewText=`${nextDate.getMonth()+1}/${nextDate.getDate()}`;
                     
@@ -216,13 +229,61 @@
                 
                 if(originalIndex!==-1){
                     appData.history.splice(originalIndex,1);
-                    // 削除後にstudyRecordsを再計算
-                    recalculateStudyRecords();
+                    
+                    // 削除後に次回学習日を再計算
+                    updateNextReviewDates();
+                    
                     renderHistory();
                     saveData();
                     showNotification('学習記録を削除しました');
                 }
             }
+        }
+        
+        // 削除後に次回学習日を再計算する
+        function updateNextReviewDates() {
+            // まず一意な項目のリストを取得
+            const uniqueItems = new Map();
+            
+            appData.history.forEach(record => {
+                const key = generateItemKey(record.category, record.itemId, record.itemName);
+                uniqueItems.set(key, {
+                    category: record.category,
+                    itemId: record.itemId,
+                    itemName: record.itemName
+                });
+            });
+            
+            // 各項目について次回学習日を再計算
+            uniqueItems.forEach((item, key) => {
+                // 項目の学習履歴を日付順にソート
+                const itemHistory = appData.history.filter(record => 
+                    generateItemKey(record.category, record.itemId, record.itemName) === key
+                ).sort((a, b) => new Date(a.date) - new Date(b.date));
+                
+                // 各記録の次回学習日とステータスを更新
+                itemHistory.forEach((record, idx) => {
+                    // 最終記録の場合、パターンの長さを超えているかチェック
+                    if (idx === itemHistory.length - 1) {
+                        if (itemHistory.length >= appData.settings.reviewPattern.length) {
+                            record.completed = true;
+                            record.nextReview = null;
+                        } else {
+                            // 次回学習日の設定
+                            const nextReviewDate = calculateNextReviewDate(
+                                record.date, 
+                                itemHistory.length - 1 // 0ベースのインデックス
+                            );
+                            record.completed = false;
+                            record.nextReview = nextReviewDate ? nextReviewDate.toISOString() : null;
+                        }
+                    } else {
+                        // 最終ではない記録は完了とマーク
+                        record.completed = true;
+                        record.nextReview = null;
+                    }
+                });
+            });
         }
         
         function updateItems(){
@@ -263,15 +324,19 @@
             return category + ":" + (itemId || itemName);
         }
         
-        function calculateNextReviewDate(studyDate,itemKey,isComplete=false){
-            if(isComplete)return null;
+        function calculateNextReviewDate(studyDate, studyIndex){
+            const date = new Date(studyDate);
+            const pattern = appData.settings.reviewPattern;
             
-            const date=new Date(studyDate);
-            const pattern=appData.settings.reviewPattern;
-            const studyCount=(appData.studyRecords[itemKey]||0);
-            const patternIndex=Math.min(studyCount,pattern.length-1);
+            // studyIndexはこれまでの学習回数を表す（0から始まる）
+            // 次の復習間隔のインデックスを計算
+            const patternIndex = studyIndex;
             
-            date.setDate(date.getDate()+pattern[patternIndex]);
+            // パターン内の範囲に収める
+            const actualIndex = Math.min(patternIndex, pattern.length - 1);
+            
+            // 対応する日数を追加
+            date.setDate(date.getDate() + pattern[actualIndex]);
             return date;
         }
         
@@ -291,30 +356,24 @@
                 itemName=itemSelect.options[itemSelect.selectedIndex].text;
             }
             
-            const itemKey=generateItemKey(category, itemId, itemName);
+            // 現在の学習回数（すでに記録されている回数）
+            const currentCount = countStudyOccurrences(category, itemId, itemName);
             
-            // 前回の学習記録を探し、同じ項目の学習がある場合は完了としてマーク
-            appData.history.forEach(record=>{
-                const recordItemKey=generateItemKey(record.category, record.itemId, record.itemName);
-                if(recordItemKey===itemKey && record.nextReview && !record.completed){
-                    record.completed=true;
+            // 全ての過去の記録を完了状態にする
+            const itemKey = generateItemKey(category, itemId, itemName);
+            appData.history.forEach(record => {
+                const recordKey = generateItemKey(record.category, record.itemId, record.itemName);
+                if (recordKey === itemKey) {
+                    record.completed = true;
+                    record.nextReview = null;
                 }
             });
             
-            // 学習回数を更新
-            if(!appData.studyRecords[itemKey]){
-                appData.studyRecords[itemKey]=0;
-            }
-            appData.studyRecords[itemKey]++;
+            // 最終回チェック
+            const isComplete = currentCount >= appData.settings.reviewPattern.length - 1;
             
-            // 現在の学習回数
-            const studyCount=appData.studyRecords[itemKey];
-            
-            // 最終回のチェック（パターンの長さを超えると完了とする）
-            const isComplete=studyCount>=appData.settings.reviewPattern.length;
-            
-            // 次回学習日を計算（完了の場合はnull）
-            const nextReview=calculateNextReviewDate(date,itemKey,isComplete);
+            // 次回学習日を計算
+            const nextReview = isComplete ? null : calculateNextReviewDate(date, currentCount);
             
             // 学習履歴に追加
             appData.history.push({
@@ -322,9 +381,8 @@
                 category,
                 itemId,
                 itemName,
-                studyCount,
-                nextReview:nextReview?nextReview.toISOString():null,
-                completed:isComplete
+                nextReview: nextReview ? nextReview.toISOString() : null,
+                completed: isComplete
             });
             
             if(category==='other')document.getElementById('other-item-input').value='';
@@ -340,6 +398,11 @@
                     const pattern=patternInput.split(',').map(s=>parseInt(s.trim()));
                     if(pattern.length>0&&!pattern.some(isNaN)){
                         appData.settings.reviewPattern=pattern;
+                        
+                        // 設定変更後に次回学習日を再計算
+                        updateNextReviewDates();
+                        renderHistory();
+                        
                         showNotification('設定を保存しました');
                     }
                 }catch(e){}
@@ -368,10 +431,13 @@
                     reader.onload=function(event){
                         try{
                             appData=JSON.parse(event.target.result);
-                            if(!appData.studyRecords)appData.studyRecords={};
+                            if(!appData.settings)appData.settings={reviewPattern:[2,7,16,35,62]};
+                            delete appData.studyRecords;
                             delete appData.tasks;
-                            // インポート後にstudyRecordsを再計算
-                            recalculateStudyRecords();
+                            
+                            // インポート後に次回学習日を再計算
+                            updateNextReviewDates();
+                            
                             saveData();
                             location.reload();
                         }catch(error){
@@ -387,7 +453,7 @@
         function clearData(){
             if(confirm('すべてのデータを削除します。この操作は元に戻せません。よろしいですか？')){
                 localStorage.removeItem('architect_study_data');
-                appData={history:[],studyRecords:{},settings:{reviewPattern:[2,7,16,35,62]}};
+                appData={history:[],settings:{reviewPattern:[2,7,16,35,62]}};
                 renderHistory();
                 showNotification('データを削除しました');
             }
