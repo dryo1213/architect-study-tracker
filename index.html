@@ -113,8 +113,41 @@
                 if(!appData.settings)appData.settings={reviewPattern:[2,7,16,35,62]};
                 if(!appData.settings.reviewPattern)appData.settings.reviewPattern=[2,7,16,35,62];
                 if(!appData.studyRecords)appData.studyRecords={};
-                // タスクリストを削除したのでtasksプロパティが不要になった
                 delete appData.tasks;
+                
+                // 学習記録数を再計算（修正点）
+                recalculateStudyRecords();
+            }
+        }
+        
+        // 学習記録数を再計算する関数
+        function recalculateStudyRecords() {
+            // studyRecordsをリセット
+            appData.studyRecords = {};
+            
+            // 現在の履歴から各項目の学習回数を再集計
+            if (appData.history && appData.history.length > 0) {
+                appData.history.forEach(record => {
+                    const itemKey = generateItemKey(record.category, record.itemId, record.itemName);
+                    
+                    // 学習回数のカウント
+                    if (!appData.studyRecords[itemKey]) {
+                        appData.studyRecords[itemKey] = 0;
+                    }
+                    
+                    // studyCountプロパティがない古いデータの場合は1としてカウント
+                    if (typeof record.studyCount === 'number') {
+                        // 同じ項目の中で最大の学習回数を採用
+                        if (record.studyCount > appData.studyRecords[itemKey]) {
+                            appData.studyRecords[itemKey] = record.studyCount;
+                        }
+                    } else {
+                        // 古いデータの場合は存在するだけで1回としてカウント
+                        if (appData.studyRecords[itemKey] < 1) {
+                            appData.studyRecords[itemKey] = 1;
+                        }
+                    }
+                });
             }
         }
         
@@ -183,8 +216,11 @@
                 
                 if(originalIndex!==-1){
                     appData.history.splice(originalIndex,1);
+                    // 削除後にstudyRecordsを再計算
+                    recalculateStudyRecords();
                     renderHistory();
                     saveData();
+                    showNotification('学習記録を削除しました');
                 }
             }
         }
@@ -223,6 +259,10 @@
             return {planning:'計画',environment:'環境',law:'法規',structure:'構造',construction:'施工',other:'その他'}[category]||'計画';
         }
         
+        function generateItemKey(category, itemId, itemName) {
+            return category + ":" + (itemId || itemName);
+        }
+        
         function calculateNextReviewDate(studyDate,itemKey,isComplete=false){
             if(isComplete)return null;
             
@@ -251,24 +291,38 @@
                 itemName=itemSelect.options[itemSelect.selectedIndex].text;
             }
             
-            const itemKey=category+":"+(itemId||itemName);
+            const itemKey=generateItemKey(category, itemId, itemName);
             
+            // 前回の学習記録を探し、同じ項目の学習がある場合は完了としてマーク
             appData.history.forEach(record=>{
-                const recordItemKey=record.category+":"+(record.itemId||record.itemName);
-                if(recordItemKey===itemKey&&record.nextReview&&!record.completed){
+                const recordItemKey=generateItemKey(record.category, record.itemId, record.itemName);
+                if(recordItemKey===itemKey && record.nextReview && !record.completed){
                     record.completed=true;
                 }
             });
             
-            if(!appData.studyRecords[itemKey])appData.studyRecords[itemKey]=0;
+            // 学習回数を更新
+            if(!appData.studyRecords[itemKey]){
+                appData.studyRecords[itemKey]=0;
+            }
             appData.studyRecords[itemKey]++;
             
+            // 現在の学習回数
             const studyCount=appData.studyRecords[itemKey];
+            
+            // 最終回のチェック（パターンの長さを超えると完了とする）
             const isComplete=studyCount>=appData.settings.reviewPattern.length;
+            
+            // 次回学習日を計算（完了の場合はnull）
             const nextReview=calculateNextReviewDate(date,itemKey,isComplete);
             
+            // 学習履歴に追加
             appData.history.push({
-                date,category,itemId,itemName,studyCount,
+                date,
+                category,
+                itemId,
+                itemName,
+                studyCount,
                 nextReview:nextReview?nextReview.toISOString():null,
                 completed:isComplete
             });
@@ -276,6 +330,7 @@
             if(category==='other')document.getElementById('other-item-input').value='';
             renderHistory();
             saveData();
+            showNotification('学習を記録しました');
         }
         
         function saveSettings(){
@@ -285,6 +340,7 @@
                     const pattern=patternInput.split(',').map(s=>parseInt(s.trim()));
                     if(pattern.length>0&&!pattern.some(isNaN)){
                         appData.settings.reviewPattern=pattern;
+                        showNotification('設定を保存しました');
                     }
                 }catch(e){}
             }
@@ -313,7 +369,9 @@
                         try{
                             appData=JSON.parse(event.target.result);
                             if(!appData.studyRecords)appData.studyRecords={};
-                            delete appData.tasks; // tasksプロパティを削除
+                            delete appData.tasks;
+                            // インポート後にstudyRecordsを再計算
+                            recalculateStudyRecords();
                             saveData();
                             location.reload();
                         }catch(error){
