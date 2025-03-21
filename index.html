@@ -171,7 +171,17 @@
             });
             
             // 日付の新しい順にソート（表示用）
-            const sortedHistory = [...appData.history].sort((a, b) => new Date(b.date) - new Date(a.date));
+            const sortedHistory = [...appData.history].sort((a, b) => {
+                // 日付で降順にソート（新しい順）
+                const dateComparison = new Date(b.date) - new Date(a.date);
+                
+                // 日付が同じ場合は、IDで降順ソート（新しく追加された順）
+                if (dateComparison === 0 && 'id' in a && 'id' in b) {
+                    return b.id - a.id;
+                }
+                
+                return dateComparison;
+            });
             
             sortedHistory.forEach((record, index) => {
                 const date=new Date(record.date);
@@ -371,8 +381,12 @@
             // 次回学習日を計算
             const nextReview = isComplete ? null : calculateNextReviewDate(date, currentCount);
             
+            // 固有IDを付与して並び替えに使用（同じ日に複数の記録がある場合）
+            const recordId = new Date().getTime();
+            
             // 学習履歴に追加
             appData.history.push({
+                id: recordId,  // 新しいIDプロパティを追加
                 date,
                 category,
                 itemId,
