@@ -112,7 +112,6 @@
                 appData=JSON.parse(data);
                 if(!appData.settings)appData.settings={reviewPattern:[2,7,16,35,62]};
                 if(!appData.settings.reviewPattern)appData.settings.reviewPattern=[2,7,16,35,62];
-                // studyRecordsプロパティは不要になったので削除
                 delete appData.studyRecords;
                 delete appData.tasks;
             }
@@ -159,54 +158,61 @@
                 return;
             }
             
-            [...appData.history].sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach((record,index)=>{
+            // 項目ごとの最新レコードを追跡するマップ
+            const latestRecordMap = new Map();
+            
+            // 日付順に並べ替えて処理（古い順）
+            const chronologicalHistory = [...appData.history].sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            // 各項目の最新の学習回数とレコードを特定
+            chronologicalHistory.forEach(record => {
+                const key = generateItemKey(record.category, record.itemId, record.itemName);
+                latestRecordMap.set(key, record);
+            });
+            
+            // 日付の新しい順にソート（表示用）
+            const sortedHistory = [...appData.history].sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            sortedHistory.forEach((record, index) => {
                 const date=new Date(record.date);
                 const formattedDate=`${date.getMonth()+1}/${date.getDate()}`;
                 
-                // 学習回数を数える
+                // この項目の現在の学習回数
                 const itemKey = generateItemKey(record.category, record.itemId, record.itemName);
-                const currentCount = countStudyOccurrences(record.category, record.itemId, record.itemName);
+                const totalCount = countStudyOccurrences(record.category, record.itemId, record.itemName);
                 
-                // この記録が何回目の学習か確認（日付の古い順でカウント）
-                const sortedHistory = [...appData.history].sort((a, b) => new Date(a.date) - new Date(b.date));
-                const recordIndex = sortedHistory.findIndex(r => 
-                    r.date === record.date && 
-                    r.category === record.category && 
-                    r.itemName === record.itemName
-                );
+                // 最新のレコードかどうか確認
+                const isLatestRecord = latestRecordMap.get(itemKey) === record;
                 
-                // 同じ項目で古い日付のレコード数を数える
-                let thisRecordNumber = 0;
-                for (let i = 0; i <= recordIndex; i++) {
-                    const r = sortedHistory[i];
-                    const rKey = generateItemKey(r.category, r.itemId, r.itemName);
-                    if (rKey === itemKey) {
-                        thisRecordNumber++;
+                let nextReviewText = '-';
+                
+                // 最新レコードで、学習回数がパターン数以上の場合は「完了」
+                if (isLatestRecord && totalCount >= appData.settings.reviewPattern.length) {
+                    nextReviewText = '<span class="completed">完了</span>';
+                }
+                // 最新レコードで、次回学習日が設定されている場合
+                else if (isLatestRecord && record.nextReview) {
+                    const nextDate = new Date(record.nextReview);
+                    nextReviewText = `${nextDate.getMonth()+1}/${nextDate.getDate()}`;
+                    
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    
+                    if(nextDate < today){
+                        nextReviewText = `<span class="next-review">期限切れ (${nextReviewText})</span>`;
+                    } else if (nextDate.getDate() === today.getDate() && 
+                               nextDate.getMonth() === today.getMonth() && 
+                               nextDate.getFullYear() === today.getFullYear()) {
+                        nextReviewText = `<span class="next-review">今日 (${nextReviewText})</span>`;
                     }
                 }
-                
-                let nextReviewText='-';
-                
-                // 最終回の学習が完了している場合
-                if (thisRecordNumber === currentCount && currentCount >= appData.settings.reviewPattern.length) {
-                    nextReviewText='<span class="completed">完了</span>';
-                } 
-                // 次回学習日が設定されている場合
-                else if (record.nextReview) {
-                    const nextDate=new Date(record.nextReview);
-                    nextReviewText=`${nextDate.getMonth()+1}/${nextDate.getDate()}`;
-                    
-                    const today=new Date();today.setHours(0,0,0,0);
-                    
-                    if(nextDate<today){
-                        nextReviewText=`<span class="next-review">期限切れ (${nextReviewText})</span>`;
-                    }else if(nextDate.getDate()===today.getDate()&&nextDate.getMonth()===today.getMonth()&&nextDate.getFullYear()===today.getFullYear()){
-                        nextReviewText=`<span class="next-review">今日 (${nextReviewText})</span>`;
-                    }
+                // 最新ではないレコードの場合は空白または完了とマーク
+                else if (record.completed) {
+                    nextReviewText = '<span class="completed">完了</span>';
                 }
                 
-                const row=document.createElement('tr');
-                row.innerHTML=`
+                const row = document.createElement('tr');
+                row.innerHTML = `
                     <td>${formattedDate}</td>
                     <td><span class="category cat-${record.category}">${getCategoryLabel(record.category)}</span>${record.itemName}</td>
                     <td>${nextReviewText}</td>
@@ -228,62 +234,52 @@
                 );
                 
                 if(originalIndex!==-1){
+                    // 削除する項目のキー
+                    const itemKey = generateItemKey(
+                        recordToDelete.category, 
+                        recordToDelete.itemId, 
+                        recordToDelete.itemName
+                    );
+                    
+                    // 削除
                     appData.history.splice(originalIndex,1);
                     
-                    // 削除後に次回学習日を再計算
-                    updateNextReviewDates();
+                    // 同じ項目の残りの記録を日付順に並べる
+                    const relatedRecords = appData.history.filter(record => 
+                        generateItemKey(record.category, record.itemId, record.itemName) === itemKey
+                    ).sort((a, b) => new Date(a.date) - new Date(b.date));
+                    
+                    // 残りの記録があれば、最新の記録に次回学習日を設定
+                    if (relatedRecords.length > 0) {
+                        // すべての記録をまず完了にする
+                        relatedRecords.forEach(record => {
+                            record.completed = true;
+                            record.nextReview = null;
+                        });
+                        
+                        // 最新の記録の次回学習日を計算
+                        const latestRecord = relatedRecords[relatedRecords.length - 1];
+                        const currentCount = relatedRecords.length;
+                        
+                        // パターン数未満なら次回学習日を設定
+                        if (currentCount < appData.settings.reviewPattern.length) {
+                            const nextReviewDate = calculateNextReviewDate(
+                                latestRecord.date, 
+                                currentCount - 1
+                            );
+                            latestRecord.completed = false;
+                            latestRecord.nextReview = nextReviewDate.toISOString();
+                        } else {
+                            // パターン数以上なら完了
+                            latestRecord.completed = true;
+                        }
+                    }
                     
                     renderHistory();
                     saveData();
                     showNotification('学習記録を削除しました');
                 }
             }
-        }
-        
-        // 削除後に次回学習日を再計算する
-        function updateNextReviewDates() {
-            // まず一意な項目のリストを取得
-            const uniqueItems = new Map();
-            
-            appData.history.forEach(record => {
-                const key = generateItemKey(record.category, record.itemId, record.itemName);
-                uniqueItems.set(key, {
-                    category: record.category,
-                    itemId: record.itemId,
-                    itemName: record.itemName
-                });
-            });
-            
-            // 各項目について次回学習日を再計算
-            uniqueItems.forEach((item, key) => {
-                // 項目の学習履歴を日付順にソート
-                const itemHistory = appData.history.filter(record => 
-                    generateItemKey(record.category, record.itemId, record.itemName) === key
-                ).sort((a, b) => new Date(a.date) - new Date(b.date));
-                
-                // 各記録の次回学習日とステータスを更新
-                itemHistory.forEach((record, idx) => {
-                    // 最終記録の場合、パターンの長さを超えているかチェック
-                    if (idx === itemHistory.length - 1) {
-                        if (itemHistory.length >= appData.settings.reviewPattern.length) {
-                            record.completed = true;
-                            record.nextReview = null;
-                        } else {
-                            // 次回学習日の設定
-                            const nextReviewDate = calculateNextReviewDate(
-                                record.date, 
-                                itemHistory.length - 1 // 0ベースのインデックス
-                            );
-                            record.completed = false;
-                            record.nextReview = nextReviewDate ? nextReviewDate.toISOString() : null;
-                        }
-                    } else {
-                        // 最終ではない記録は完了とマーク
-                        record.completed = true;
-                        record.nextReview = null;
-                    }
-                });
-            });
         }
         
         function updateItems(){
@@ -369,7 +365,7 @@
                 }
             });
             
-            // 最終回チェック
+            // 最終回チェック（パターン数以上なら完了）
             const isComplete = currentCount >= appData.settings.reviewPattern.length - 1;
             
             // 次回学習日を計算
@@ -399,8 +395,8 @@
                     if(pattern.length>0&&!pattern.some(isNaN)){
                         appData.settings.reviewPattern=pattern;
                         
-                        // 設定変更後に次回学習日を再計算
-                        updateNextReviewDates();
+                        // 設定変更後に次回学習日を更新
+                        updateAllNextReviewDates();
                         renderHistory();
                         
                         showNotification('設定を保存しました');
@@ -408,6 +404,53 @@
                 }catch(e){}
             }
             saveData();
+        }
+        
+        // すべての項目の次回学習日を更新
+        function updateAllNextReviewDates() {
+            // 一意な項目のリストを取得
+            const uniqueItems = new Map();
+            
+            appData.history.forEach(record => {
+                const key = generateItemKey(record.category, record.itemId, record.itemName);
+                uniqueItems.set(key, {
+                    category: record.category,
+                    itemId: record.itemId,
+                    itemName: record.itemName
+                });
+            });
+            
+            // 各項目について処理
+            uniqueItems.forEach((item, key) => {
+                // 項目の学習履歴を日付順にソート
+                const itemHistory = appData.history.filter(record => 
+                    generateItemKey(record.category, record.itemId, record.itemName) === key
+                ).sort((a, b) => new Date(a.date) - new Date(b.date));
+                
+                // すべての記録をいったん完了にする
+                itemHistory.forEach(record => {
+                    record.completed = true;
+                    record.nextReview = null;
+                });
+                
+                // 最新の記録の次回学習日を更新
+                if (itemHistory.length > 0) {
+                    const latestRecord = itemHistory[itemHistory.length - 1];
+                    
+                    // パターン数未満なら次回学習日を設定
+                    if (itemHistory.length < appData.settings.reviewPattern.length) {
+                        const nextReviewDate = calculateNextReviewDate(
+                            latestRecord.date,
+                            itemHistory.length - 1
+                        );
+                        latestRecord.completed = false;
+                        latestRecord.nextReview = nextReviewDate.toISOString();
+                    } else {
+                        // パターン数以上なら完了
+                        latestRecord.completed = true;
+                    }
+                }
+            });
         }
         
         function exportData(){
@@ -435,8 +478,8 @@
                             delete appData.studyRecords;
                             delete appData.tasks;
                             
-                            // インポート後に次回学習日を再計算
-                            updateNextReviewDates();
+                            // インポート後に次回学習日を更新
+                            updateAllNextReviewDates();
                             
                             saveData();
                             location.reload();
