@@ -207,7 +207,7 @@
                 
                 let nextReviewText = '-';
                 
-                if (isLatestRecord && totalCount >= pattern.length) {
+                if (isLatestRecord && totalCount > pattern.length) {
                     nextReviewText = '<span class="completed">完了</span>';
                 }
                 else if (isLatestRecord && record.nextReview) {
@@ -299,7 +299,7 @@
                         const latestRecord = relatedRecords[relatedRecords.length - 1];
                         const currentCount = relatedRecords.length;
                         
-                        if (currentCount < pattern.length) {
+                        if (currentCount <= pattern.length) {
                             const nextReviewDate = calculateNextReviewDate(
                                 latestRecord.date, 
                                 currentCount - 1,
@@ -404,7 +404,7 @@
                 appData.settings.otherReviewPattern : 
                 appData.settings.reviewPattern;
             
-            const isComplete = currentCount >= pattern.length - 1;
+            const isComplete = currentCount >= pattern.length;
             
             const nextReview = isComplete ? null : calculateNextReviewDate(date, currentCount, category);
             
@@ -485,7 +485,7 @@
                     
                     const latestRecord = itemHistory[itemHistory.length - 1];
                     
-                    if (itemHistory.length < pattern.length) {
+                    if (itemHistory.length <= pattern.length) {
                         const nextReviewDate = calculateNextReviewDate(
                             latestRecord.date,
                             itemHistory.length - 1,
